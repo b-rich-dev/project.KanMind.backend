@@ -1,5 +1,5 @@
-from django.urls import path
+from django.urls import path, include
 
 urlpatterns = [
-    # Kanban-App URLs werden hier definiert
+    path('', include('auth_app.api.urls')),
 ]
