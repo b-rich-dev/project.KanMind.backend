@@ -9,7 +9,28 @@ from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer
+from kanban_app.models import KanbanBoard
 
+
+class BoardsView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = KanbanBoard.objects.all()
+    serializer_class = BoardSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+      
+class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = KanbanBoard.objects.all()
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method in ['PATCH', 'PUT']:
+            return BoardUpdateSerializer
+        return BoardDetailSerializer
+      
         
 # View to check if an email is already registered.
 class EmailCheckView(APIView):
