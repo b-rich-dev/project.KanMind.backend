@@ -9,8 +9,8 @@ from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer
-from kanban_app.models import KanbanBoard
+from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer
+from kanban_app.models import KanbanBoard, Task
 
 
 class BoardsView(generics.ListCreateAPIView):
@@ -30,6 +30,11 @@ class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method in ['PATCH', 'PUT']:
             return BoardUpdateSerializer
         return BoardDetailSerializer
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"message": "The board has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
       
         
 # View to check if an email is already registered.
@@ -52,3 +57,27 @@ class EmailCheckView(APIView):
             }, status=status.HTTP_200_OK)
         else:
             return Response({"message": "Email not found. The email address does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        
+class AssignedTasksView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskSerializer
+
+    def get_queryset(self):
+        return Task.objects.filter(assignee=self.request.user)
+    
+    
+class ReviewingTasksView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskSerializer
+
+    def get_queryset(self):
+        return Task.objects.filter(reviewer_id=self.request.user)
+    
+    
+class TasksView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskSerializer
+
+    def perform_create(self, serializer):
+        return super().perform_create(serializer)
