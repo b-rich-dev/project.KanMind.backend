@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer
+from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer, TaskDetailSerializer, TaskCommentsSerializer
 from kanban_app.models import KanbanBoard, Task
 
 
@@ -81,3 +81,42 @@ class TasksView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         return super().perform_create(serializer)
+    
+    
+class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskDetailSerializer
+    queryset = Task.objects.all()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"message": "The task has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
+    
+    
+class TaskCommentsView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskCommentsSerializer
+
+    def get_queryset(self):
+        task_id = self.kwargs['pk']
+        return Task.objects.filter(id=task_id).first().task_comments.all()
+    
+    def perform_create(self, serializer):
+        task_id = self.kwargs['pk']
+        task = Task.objects.get(id=task_id)
+        serializer.save(author=self.request.user, task=task)
+    
+   
+class TaskCommentsDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TaskCommentsSerializer
+
+    def get_queryset(self):
+        task_id = self.kwargs['pk']
+        return Task.objects.filter(id=task_id).first().task_comments.all()
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"message": "The comment has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT) 

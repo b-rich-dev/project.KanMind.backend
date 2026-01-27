@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
-from kanban_app.models import KanbanBoard, Task
+from kanban_app.models import KanbanBoard, Task, Comment
 
 class BoardSerializer(serializers.ModelSerializer):
     owner_id = serializers.IntegerField(source='owner.id', read_only=True)
@@ -60,9 +60,39 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ['id', 'board', 'title', 'description', 'status', 'priority', 'assignee', 'assignee_id', 'reviewer', 'reviewer_id', 'due_date', 'comments_count']
+        read_only_fields = ['id', 'comments_count']
     
     def get_comments_count(self, obj):
         return obj.task_comments.count()
+
+
+class TaskDetailSerializer(serializers.ModelSerializer):
+    assignee = UserDataSerializer(read_only=True)
+    reviewer = UserDataSerializer(source='reviewer_id', read_only=True)
+    #comments = serializers.SerializerMethodField()
+    assignee_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='assignee',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    reviewer_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = Task
+        fields = ['id', 'title', 'description', 'status', 'priority', 'assignee', 'assignee_id', 'reviewer', 'reviewer_id', 'due_date']
+        read_only_fields = ['id']
+    
+    # def get_comments(self, obj):
+    #     comments = obj.task_comments.all().order_by('-created_at')
+    #     return CommentSerializer(comments, many=True).data
+    
 
         
 class BoardDetailSerializer(serializers.ModelSerializer):
@@ -96,3 +126,15 @@ class BoardUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = KanbanBoard
         fields = ['id', 'title', 'owner_data', 'members_data', 'members_ids']
+        
+        
+class TaskCommentsSerializer(serializers.ModelSerializer):
+    author = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Comment
+        fields = ['id', 'created_at', 'author', 'content']
+        read_only_fields = ['id', 'author', 'created_at']
+    
+    def get_author(self, obj):
+        return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
