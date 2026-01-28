@@ -28,6 +28,7 @@ class BoardsView(generics.ListCreateAPIView):
         return KanbanBoard.objects.filter(Q(owner=user) | Q(board_tasks__assignee=user)).distinct()
     
     def perform_create(self, serializer):
+        """Set the current user as the board owner."""
         serializer.save(owner=self.request.user)
 
       
@@ -41,6 +42,7 @@ class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsBoardOwnerOrMember]
     
     def get_serializer_class(self):
+        """Return appropriate serializer based on request method."""
         if self.request.method == 'GET':
             return BoardDetailSerializer
         
@@ -50,9 +52,25 @@ class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
       
         
 class EmailCheckView(APIView):
+    """
+    API view to check if an email address is registered.
+    
+    Returns user information if email exists, 404 if not found.
+    """
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
+        """
+        Check if email exists and return user data.
+        
+        Query parameter:
+            email: The email address to check
+            
+        Returns:
+            200: User data (id, email, fullname) if found
+            404: Error message if email not found
+            400: Error if email parameter missing
+        """
         email = request.query_params.get('email')
         if not email:
             return Response({"error": "Email parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -71,18 +89,26 @@ class EmailCheckView(APIView):
         
         
 class AssignedTasksView(generics.ListAPIView):
+    """
+    API view to list all tasks assigned to the current user.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
 
     def get_queryset(self):
+        """Return tasks where current user is the assignee."""
         return Task.objects.filter(assignee=self.request.user)
     
     
 class ReviewingTasksView(generics.ListAPIView):
+    """
+    API view to list all tasks where the current user is a reviewer.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
 
     def get_queryset(self):
+        """Return tasks where current user is the reviewer."""
         return Task.objects.filter(reviewer_id=self.request.user)
     
     
