@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.http import Http404
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,7 +8,7 @@ from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 
-from kanban_app.models import KanbanBoard, Task
+from kanban_app.models import KanbanBoard, Task, Comment
 from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer, TaskDetailSerializer, TaskCommentsSerializer
 from .permissions import IsBoardOwnerOrMember
 
@@ -15,7 +16,7 @@ from .permissions import IsBoardOwnerOrMember
 class BoardsView(generics.ListCreateAPIView):
     """
     API view to list and create Kanban boards.
-    
+
     Returns only boards owned by the current user or boards where the user is assigned to tasks.
     """
     permission_classes = [IsAuthenticated]
@@ -24,9 +25,7 @@ class BoardsView(generics.ListCreateAPIView):
     def get_queryset(self):
         """Filter boards to show only those owned by or assigned to the current user."""
         user = self.request.user
-        return KanbanBoard.objects.filter(
-            Q(owner=user) | Q(board_tasks__assignee=user)
-        ).distinct()
+        return KanbanBoard.objects.filter(Q(owner=user) | Q(board_tasks__assignee=user)).distinct()
     
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -50,7 +49,6 @@ class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
         return BoardDetailSerializer
       
         
-# View to check if an email is already registered.
 class EmailCheckView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -108,43 +106,119 @@ class TasksView(generics.ListCreateAPIView):
         if user != board.owner and user not in board.members.all():
             raise PermissionDenied("You must be a member of the board to create tasks.")
         
-        serializer.save()
+        serializer.save(created_by=user)
     
     
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    API view to retrieve, update, or delete a specific task.
+    
+    Only board members can update or delete tasks.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskDetailSerializer
     queryset = Task.objects.all()
-
-    # def destroy(self, request, *args, **kwargs):
-    #     instance = self.get_object()
-    #     self.perform_destroy(instance)
-    #     return Response({"message": "The task has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
+    
+    def perform_update(self, serializer):
+        """
+        Check if user is a member of the board before updating the task.
+        """
+        task = self.get_object()
+        board = task.board
+        user = self.request.user
+        
+        # Check if user is owner or member of the board
+        if user != board.owner and user not in board.members.all():
+            raise PermissionDenied("You must be a member of the board to update tasks.")
+        
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """
+        Check if user is the task creator or board owner before deleting the task.
+        """
+        board = instance.board
+        user = self.request.user
+        
+        # Only task creator or board owner can delete
+        if user != instance.created_by and user != board.owner:
+            raise PermissionDenied("Only the task creator or board owner can delete this task.")
+        
+        instance.delete()
     
     
 class TaskCommentsView(generics.ListCreateAPIView):
+    """
+    API view to list and create comments for a specific task.
+    
+    Only board members can view and create comments.
+    Comments are sorted chronologically by creation date.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskCommentsSerializer
 
     def get_queryset(self):
         task_id = self.kwargs['pk']
-        return Task.objects.filter(id=task_id).first().task_comments.all()
+        task = Task.objects.filter(id=task_id).first()
+        
+        if not task:
+            raise Http404("Task not found.")
+        
+        # Check if user is board member
+        board = task.board
+        user = self.request.user
+        if user != board.owner and user not in board.members.all():
+            return Comment.objects.none()
+        
+        # Return comments sorted by creation date
+        return task.task_comments.all().order_by('created_at')
     
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
         task = Task.objects.get(id=task_id)
-        serializer.save(author=self.request.user, task=task)
+        board = task.board
+        user = self.request.user
+        
+        # Check if user is board member
+        if user != board.owner and user not in board.members.all():
+            raise PermissionDenied("You must be a member of the board to comment on tasks.")
+        
+        serializer.save(author=user, task=task)
     
    
 class TaskCommentsDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    API view to retrieve, update, or delete a specific comment.
+    
+    Only board members can access comments. Only the comment author can delete it.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskCommentsSerializer
+    lookup_url_kwarg = 'comment_pk'
 
     def get_queryset(self):
         task_id = self.kwargs['pk']
-        return Task.objects.filter(id=task_id).first().task_comments.all()
+        task = Task.objects.filter(id=task_id).first()
+        
+        if not task:
+            raise Http404("Task not found.")
+        
+        # Check if user is board member
+        board = task.board
+        user = self.request.user
+        if user != board.owner and user not in board.members.all():
+            return Comment.objects.none()
+        
+        return task.task_comments.all()
     
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({"message": "The comment has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT) 
+    def perform_destroy(self, instance):
+        """
+        Only the comment author can delete the comment.
+        """
+        user = self.request.user
+        
+        # Check if user is the comment author
+        if user != instance.author:
+            raise PermissionDenied("Only the comment author can delete this comment.")
+        
+        instance.delete()

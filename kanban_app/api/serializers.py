@@ -111,7 +111,7 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ['id', 'title', 'description', 'status', 'priority', 'assignee', 'assignee_id', 'reviewer', 'reviewer_id', 'due_date']
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'board']
     
     def validate(self, data):
         """
@@ -130,15 +130,11 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         
         # Validate assignee is a board member (if provided)
         if assignee and assignee not in board_members:
-            raise serializers.ValidationError({
-                "assignee_id": "Assignee must be a member of the board."
-            })
+            raise serializers.ValidationError({"assignee_id": "Assignee must be a member of the board."})
         
         # Validate reviewer is a board member (if provided)
         if reviewer and reviewer not in board_members:
-            raise serializers.ValidationError({
-                "reviewer_id": "Reviewer must be a member of the board."
-            })
+            raise serializers.ValidationError({"reviewer_id": "Reviewer must be a member of the board."})
         
         return data
     

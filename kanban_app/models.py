@@ -20,6 +20,7 @@ class Task(models.Model):
     priority = models.CharField(max_length=50, choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High')], default='medium')
     assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_assigned')
     reviewer_id = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks_to_review')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks_created', null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
