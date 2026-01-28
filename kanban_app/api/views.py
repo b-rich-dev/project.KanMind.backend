@@ -1,40 +1,53 @@
+from django.contrib.auth.models import User
+from django.db.models import Q
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from rest_framework import status
-from rest_framework import generics
-from django.contrib.auth.models import User
-#from user_auth_app.models import UserProfile
-#from .serializers import UserProfileSerializer, RegistrationSerializer
-from rest_framework.authtoken.models import Token
-from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer, TaskDetailSerializer, TaskCommentsSerializer
+from rest_framework import status, generics
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+
 from kanban_app.models import KanbanBoard, Task
+from .serializers import BoardSerializer, BoardDetailSerializer, BoardUpdateSerializer, TaskSerializer, TaskDetailSerializer, TaskCommentsSerializer
+from .permissions import IsBoardOwnerOrMember
 
 
 class BoardsView(generics.ListCreateAPIView):
+    """
+    API view to list and create Kanban boards.
+    
+    Returns only boards owned by the current user or boards where the user is assigned to tasks.
+    """
     permission_classes = [IsAuthenticated]
-    queryset = KanbanBoard.objects.all()
     serializer_class = BoardSerializer
+    
+    def get_queryset(self):
+        """Filter boards to show only those owned by or assigned to the current user."""
+        user = self.request.user
+        return KanbanBoard.objects.filter(
+            Q(owner=user) | Q(board_tasks__assignee=user)
+        ).distinct()
     
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
       
 class BoardsDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    API view to retrieve, update, or delete a specific Kanban board.
+    
+    Only board owners or members can access the board.
+    """
     queryset = KanbanBoard.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsBoardOwnerOrMember]
     
     def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return BoardDetailSerializer
+        
         if self.request.method in ['PATCH', 'PUT']:
             return BoardUpdateSerializer
         return BoardDetailSerializer
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({"message": "The board has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
       
         
 # View to check if an email is already registered.
@@ -76,11 +89,26 @@ class ReviewingTasksView(generics.ListAPIView):
     
     
 class TasksView(generics.ListCreateAPIView):
+    """
+    API view to list and create tasks.
+    
+    Only board members can create tasks for that board.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
 
     def perform_create(self, serializer):
-        return super().perform_create(serializer)
+        """
+        Check if user is a member of the board before creating the task.
+        """
+        board = serializer.validated_data.get('board')
+        user = self.request.user
+        
+        # Check if user is owner or member of the board
+        if user != board.owner and user not in board.members.all():
+            raise PermissionDenied("You must be a member of the board to create tasks.")
+        
+        serializer.save()
     
     
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -88,10 +116,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TaskDetailSerializer
     queryset = Task.objects.all()
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({"message": "The task has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
+    # def destroy(self, request, *args, **kwargs):
+    #     instance = self.get_object()
+    #     self.perform_destroy(instance)
+    #     return Response({"message": "The task has been successfully deleted."}, status=status.HTTP_204_NO_CONTENT)
     
     
 class TaskCommentsView(generics.ListCreateAPIView):

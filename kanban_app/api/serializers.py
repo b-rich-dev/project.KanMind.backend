@@ -62,6 +62,31 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = ['id', 'board', 'title', 'description', 'status', 'priority', 'assignee', 'assignee_id', 'reviewer', 'reviewer_id', 'due_date', 'comments_count']
         read_only_fields = ['id', 'comments_count']
     
+    def validate(self, data):
+        """
+        Validate that assignee and reviewer are members of the board.
+        """
+        board = data.get('board')
+        assignee = data.get('assignee')
+        reviewer = data.get('reviewer_id')
+        
+        # Get board members
+        board_members = board.members.all()
+        
+        # Validate assignee is a board member (if provided)
+        if assignee and assignee not in board_members:
+            raise serializers.ValidationError({
+                "assignee_id": "Assignee must be a member of the board."
+            })
+        
+        # Validate reviewer is a board member (if provided)
+        if reviewer and reviewer not in board_members:
+            raise serializers.ValidationError({
+                "reviewer_id": "Reviewer must be a member of the board."
+            })
+        
+        return data
+    
     def get_comments_count(self, obj):
         return obj.task_comments.count()
 
@@ -69,7 +94,6 @@ class TaskSerializer(serializers.ModelSerializer):
 class TaskDetailSerializer(serializers.ModelSerializer):
     assignee = UserDataSerializer(read_only=True)
     reviewer = UserDataSerializer(source='reviewer_id', read_only=True)
-    #comments = serializers.SerializerMethodField()
     assignee_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='assignee',
@@ -89,9 +113,34 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'status', 'priority', 'assignee', 'assignee_id', 'reviewer', 'reviewer_id', 'due_date']
         read_only_fields = ['id']
     
-    # def get_comments(self, obj):
-    #     comments = obj.task_comments.all().order_by('-created_at')
-    #     return CommentSerializer(comments, many=True).data
+    def validate(self, data):
+        """
+        Validate that assignee and reviewer are members of the board.
+        """
+        # Get board from instance (for updates) or data (for creates)
+        board = self.instance.board if self.instance else data.get('board')
+        assignee = data.get('assignee')
+        reviewer = data.get('reviewer_id')
+        
+        if not board:
+            return data
+        
+        # Get board members
+        board_members = board.members.all()
+        
+        # Validate assignee is a board member (if provided)
+        if assignee and assignee not in board_members:
+            raise serializers.ValidationError({
+                "assignee_id": "Assignee must be a member of the board."
+            })
+        
+        # Validate reviewer is a board member (if provided)
+        if reviewer and reviewer not in board_members:
+            raise serializers.ValidationError({
+                "reviewer_id": "Reviewer must be a member of the board."
+            })
+        
+        return data
     
 
         
@@ -115,17 +164,16 @@ class BoardDetailSerializer(serializers.ModelSerializer):
 class BoardUpdateSerializer(serializers.ModelSerializer):
     owner_data = UserDataSerializer(source='owner', read_only=True)
     members_data = UserDataSerializer(many=True, source='members', read_only=True)
-    members_ids = serializers.PrimaryKeyRelatedField(
+    members = serializers.PrimaryKeyRelatedField(
         many=True, 
         queryset=User.objects.all(), 
-        source='members',
         write_only=True,
         required=False
     )
     
     class Meta:
         model = KanbanBoard
-        fields = ['id', 'title', 'owner_data', 'members_data', 'members_ids']
+        fields = ['id', 'title', 'owner_data', 'members_data', 'members']
         
         
 class TaskCommentsSerializer(serializers.ModelSerializer):
