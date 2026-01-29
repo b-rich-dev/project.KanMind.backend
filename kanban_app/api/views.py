@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db.models import Q
-from django.http import Http404
+from django.shortcuts import get_object_or_404
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -121,6 +121,20 @@ class TasksView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
 
+    def create(self, request, *args, **kwargs):
+        """
+        Check if board exists before validation.
+        """
+        board_id = request.data.get('board')
+        
+        # Check if board exists
+        if board_id:
+            board = KanbanBoard.objects.filter(id=board_id).first()
+            if not board:
+                return Response({"message": "Board not found. Board does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         """
         Check if user is a member of the board before creating the task.
@@ -185,23 +199,20 @@ class TaskCommentsView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         task_id = self.kwargs['pk']
-        task = Task.objects.filter(id=task_id).first()
-        
-        if not task:
-            raise Http404("Task not found.")
+        task = get_object_or_404(Task, id=task_id)
         
         # Check if user is board member
         board = task.board
         user = self.request.user
         if user != board.owner and user not in board.members.all():
-            return Comment.objects.none()
+            raise PermissionDenied("You must be a member of the board to view comments.")
         
         # Return comments sorted by creation date
         return task.task_comments.all().order_by('created_at')
     
     def perform_create(self, serializer):
         task_id = self.kwargs['pk']
-        task = Task.objects.get(id=task_id)
+        task = get_object_or_404(Task, id=task_id)
         board = task.board
         user = self.request.user
         
@@ -224,16 +235,13 @@ class TaskCommentsDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         task_id = self.kwargs['pk']
-        task = Task.objects.filter(id=task_id).first()
-        
-        if not task:
-            raise Http404("Task not found.")
+        task = get_object_or_404(Task, id=task_id)
         
         # Check if user is board member
         board = task.board
         user = self.request.user
         if user != board.owner and user not in board.members.all():
-            return Comment.objects.none()
+            raise PermissionDenied("You must be a member of the board to access comments.")
         
         return task.task_comments.all()
     

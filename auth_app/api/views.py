@@ -78,7 +78,7 @@ class LoginView(APIView):
                 "user_id": user.id
             }, status=status.HTTP_200_OK)
         
-        return Response({"error": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"error": "Invalid email or password."}, status=status.HTTP_400_BAD_REQUEST)
     
 
 class LogoutView(APIView):
