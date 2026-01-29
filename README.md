@@ -46,7 +46,7 @@ A Django REST Framework-based backend API for managing Kanban boards, tasks, and
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/b-rich-dev/project.KanMind.backend
 cd project.KanMind.backend
 ```
 

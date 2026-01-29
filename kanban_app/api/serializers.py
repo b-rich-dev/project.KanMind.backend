@@ -1,15 +1,13 @@
 from django.contrib.auth.models import User
 
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
 
 from kanban_app.models import KanbanBoard, Task, Comment
 
 
 class BoardSerializer(serializers.ModelSerializer):
     """
-    Serializer for listing and creating Kanban boards.
-    
+    Serializer for listing and creating Kanban boards.  
     Provides summary statistics including member count, ticket count,
     tasks in 'to do' status, and high priority tasks.
     """
@@ -40,8 +38,7 @@ class BoardSerializer(serializers.ModelSerializer):
         
 class UserDataSerializer(serializers.ModelSerializer):
     """
-    Serializer for user data representation.
-    
+    Serializer for user data representation.   
     Combines first_name and last_name into a single fullname field.
     Falls back to username if no name is provided.
     """
@@ -58,8 +55,7 @@ class UserDataSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     """
-    Serializer for listing and creating tasks.
-    
+    Serializer for listing and creating tasks.   
     Validates that assignee and reviewer are members of the board.
     Provides read-only user data for assignee and reviewer.
     """
@@ -86,21 +82,15 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'comments_count']
     
     def validate(self, data):
-        """
-        Validate that assignee and reviewer are members of the board.
-        """
         board = data.get('board')
         assignee = data.get('assignee')
         reviewer = data.get('reviewer_id')
         
-        # Get board members
         board_members = board.members.all()
         
-        # Validate assignee is a board member (if provided)
         if assignee and assignee not in board_members:
             raise serializers.ValidationError({"assignee_id": "Assignee must be a member of the board."})
         
-        # Validate reviewer is a board member (if provided)
         if reviewer and reviewer not in board_members:
             raise serializers.ValidationError({"reviewer_id": "Reviewer must be a member of the board."})
         
@@ -112,8 +102,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
 class TaskDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer for retrieving and updating task details.
-    
+    Serializer for retrieving and updating task details.   
     Board field is read-only to prevent moving tasks between boards.
     Validates that assignee and reviewer are members of the board.
     """
@@ -139,10 +128,6 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'board']
     
     def validate(self, data):
-        """
-        Validate that assignee and reviewer are members of the board.
-        """
-        # Get board from instance (for updates) or data (for creates)
         board = self.instance.board if self.instance else data.get('board')
         assignee = data.get('assignee')
         reviewer = data.get('reviewer_id')
@@ -150,25 +135,20 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         if not board:
             return data
         
-        # Get board members
         board_members = board.members.all()
         
-        # Validate assignee is a board member (if provided)
         if assignee and assignee not in board_members:
             raise serializers.ValidationError({"assignee_id": "Assignee must be a member of the board."})
         
-        # Validate reviewer is a board member (if provided)
         if reviewer and reviewer not in board_members:
             raise serializers.ValidationError({"reviewer_id": "Reviewer must be a member of the board."})
         
         return data
     
-
         
 class BoardDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer for detailed board view.
-    
+    Serializer for detailed board view.   
     Includes full member data and all associated tasks.
     """
     owner_id = serializers.IntegerField(source='owner.id', read_only=True)
@@ -189,8 +169,7 @@ class BoardDetailSerializer(serializers.ModelSerializer):
 
 class BoardUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer for updating board details.
-    
+    Serializer for updating board details.   
     Allows updating title and members. Owner cannot be changed.
     """
     owner_data = UserDataSerializer(source='owner', read_only=True)
@@ -209,8 +188,7 @@ class BoardUpdateSerializer(serializers.ModelSerializer):
         
 class TaskCommentsSerializer(serializers.ModelSerializer):
     """
-    Serializer for task comments.
-    
+    Serializer for task comments.   
     Author is automatically set from authenticated user.
     Author field returns full name or username.
     """
@@ -222,6 +200,5 @@ class TaskCommentsSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'author', 'created_at']
     
     def get_author(self, obj):
-        """Return author's full name or username as fallback."""
         return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
     

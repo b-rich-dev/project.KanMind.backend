@@ -71,7 +71,6 @@ class CommentAdmin(admin.ModelAdmin):
     content_preview.short_description = 'Content Preview'
 
 
-# Register models with admin classes
 admin.site.register(KanbanBoard, KanbanBoardAdmin)
 admin.site.register(Task, TaskAdmin)
 admin.site.register(Comment, CommentAdmin)
